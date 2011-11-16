@@ -15,10 +15,12 @@
 package com.nidhinova.tika.server;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
@@ -27,6 +29,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.Set;
+import java.io.PrintWriter;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -61,6 +64,12 @@ import org.springframework.stereotype.Component;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
+
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.sax.SAXTransformerFactory;
+import javax.xml.transform.sax.TransformerHandler;
+import javax.xml.transform.stream.StreamResult;
 
 /**
  * Tika as a HTTP service, returns metadata as json, textual content as plain
@@ -146,6 +155,7 @@ public class TikaService {
 				} else if (opkey.equalsIgnoreCase("text") || opkey.equalsIgnoreCase("fulldata")) {
 					handler = new BodyContentHandler(textBuffer);
 				}
+
 				try {
 
 					parser.parse(is, handler, metadata, context);
@@ -252,21 +262,50 @@ public class TikaService {
 					WebApplicationException {
 
 				StringWriter textBuffer = new StringWriter();
+                ByteArrayOutputStream streamBuffer = new ByteArrayOutputStream();
 
 				ContentHandler handler = null;
 				if (opkey.equalsIgnoreCase("metadata")) {
 					handler = new DefaultHandler();
 				} else if (opkey.equalsIgnoreCase("text") || opkey.equalsIgnoreCase("fulldata")) {
 					handler = new BodyContentHandler(textBuffer);
+				} else if (opkey.equalsIgnoreCase("html")) {
+                    PrintStream ps = new PrintStream(streamBuffer);
+                    try {
+                        handler = getTransformerHandler(ps);
+                    }
+                    catch (Exception e) {
+                        StringWriter sw = new StringWriter();
+                        PrintWriter  pw = new PrintWriter(sw);
+                        e.printStackTrace(pw);
+                        logger.info("DOH:" + sw.toString());
+                    }
 				}
+
+                logger.info("Opkey is " + opkey);
+
 				try {
+                    logger.info("one");
 					parser.parse(new BufferedInputStream(is), handler,
 							metadata, context);
+
+                    logger.info("two");
 					String contentEncoding = (metadata
-							.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE) == null ? "UTF-8"
-							: metadata.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE));
+							.get(org.apache.tika.metadata.HttpHeaders.CONTENT_ENCODING) == null ? "UTF-8"
+							: metadata.get(org.apache.tika.metadata.HttpHeaders.CONTENT_ENCODING));
+
+					logger.info("Content encoding: "+ metadata
+							.get(org.apache.tika.metadata.HttpHeaders.CONTENT_ENCODING));
+
+                    //(metadata
+					//		.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE) == null ? "UTF-8"
+					//		: metadata.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE));
+
+                    logger.info("three");
 					Writer outWriter = getOutputWriter(outputStream,
 							contentEncoding);
+
+                    logger.info("four");
 
 					//metadata is always gathered
 					// munch tika metadata object it to make json
@@ -275,10 +314,20 @@ public class TikaService {
 
 					if (opkey.equalsIgnoreCase("metadata")) {
 						outWriter.write("{\"metadata\":"+jsonMetadata+"}");
+						logger.info("{\"metadata\":"+jsonMetadata+"}");
 					} else if (opkey.equalsIgnoreCase("text")) {
 						// write it out
 						outWriter.write("{ \"text\":"
 								+ JSONHelper.toJSON(textBuffer.toString())
+								+ " }");
+						logger.info("{ \"text\":"
+								+ JSONHelper.toJSON(textBuffer.toString())
+								+ " }");
+					} else if ( opkey.equalsIgnoreCase("html") ) {
+						// write it out
+						outWriter.write(streamBuffer.toString());
+						logger.info("{ \"html\":"
+								+ JSONHelper.toJSON(streamBuffer.toString())
 								+ " }");
 					} else if (opkey.equalsIgnoreCase("fulldata")) {
 						StringBuilder data = new StringBuilder();
@@ -288,8 +337,16 @@ public class TikaService {
 									+ JSONHelper.toJSON(textBuffer.toString())
 									+ " }");
 						outWriter.write(data.toString());
+						logger.info(data.toString());
 					}
+                    else {
+                        outWriter.write("Oh bugga");
+                        logger.info("Oh bugga");
+                    }
+                    outWriter.write("all done");
 					outWriter.flush();
+
+                    logger.info("all done");
 				} catch (SAXException e) {
 					throw new WebApplicationException(
 							Response.Status.INTERNAL_SERVER_ERROR);
@@ -322,6 +379,12 @@ public class TikaService {
 					throw new WebApplicationException(
 							Response.Status.INTERNAL_SERVER_ERROR);
 				}
+                catch (Exception e) {
+                    StringWriter sw = new StringWriter();
+                    PrintWriter  pw = new PrintWriter(sw);
+                    e.printStackTrace(pw);
+                    logger.info("Exception:" + sw.toString());
+                }
 			}
 		};
 
@@ -470,4 +533,33 @@ public class TikaService {
 		return path;
 	}
 
+    /**
+* Returns a transformer handler that serializes incoming SAX events
+* to XHTML or HTML (depending the given method) using the given output
+* encoding.
+*
+* @see <a href="https://issues.apache.org/jira/browse/TIKA-277">TIKA-277</a>
+* @param output output stream
+* @param method "xml" or "html"
+* @param encoding output encoding,
+* or <code>null</code> for the platform default
+* @return {@link System#out} transformer handler
+* @throws TransformerConfigurationException
+* if the transformer can not be created
+*/
+    private static TransformerHandler getTransformerHandler(
+            OutputStream output) 
+            throws TransformerConfigurationException {
+        SAXTransformerFactory factory = (SAXTransformerFactory)
+                SAXTransformerFactory.newInstance();
+        TransformerHandler handler = factory.newTransformerHandler();
+        handler.getTransformer().setOutputProperty(OutputKeys.METHOD, "html");
+        handler.getTransformer().setOutputProperty(OutputKeys.INDENT, "no");
+//        if (encoding != null) {
+//            handler.getTransformer().setOutputProperty(
+//                    OutputKeys.ENCODING, encoding);
+//        }
+        handler.setResult(new StreamResult(output));
+        return handler;
+    }
 }
