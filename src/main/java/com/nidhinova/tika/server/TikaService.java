@@ -285,27 +285,19 @@ public class TikaService {
                 logger.info("Opkey is " + opkey);
 
 				try {
-                    logger.info("one");
 					parser.parse(new BufferedInputStream(is), handler,
 							metadata, context);
 
-                    logger.info("two");
 					String contentEncoding = (metadata
 							.get(org.apache.tika.metadata.HttpHeaders.CONTENT_ENCODING) == null ? "UTF-8"
 							: metadata.get(org.apache.tika.metadata.HttpHeaders.CONTENT_ENCODING));
-
-					logger.info("Content encoding: "+ metadata
-							.get(org.apache.tika.metadata.HttpHeaders.CONTENT_ENCODING));
 
                     //(metadata
 					//		.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE) == null ? "UTF-8"
 					//		: metadata.get(org.apache.tika.metadata.HttpHeaders.CONTENT_TYPE));
 
-                    logger.info("three");
 					Writer outWriter = getOutputWriter(outputStream,
 							contentEncoding);
-
-                    logger.info("four");
 
 					//metadata is always gathered
 					// munch tika metadata object it to make json
@@ -314,21 +306,14 @@ public class TikaService {
 
 					if (opkey.equalsIgnoreCase("metadata")) {
 						outWriter.write("{\"metadata\":"+jsonMetadata+"}");
-						logger.info("{\"metadata\":"+jsonMetadata+"}");
 					} else if (opkey.equalsIgnoreCase("text")) {
 						// write it out
 						outWriter.write("{ \"text\":"
 								+ JSONHelper.toJSON(textBuffer.toString())
 								+ " }");
-						logger.info("{ \"text\":"
-								+ JSONHelper.toJSON(textBuffer.toString())
-								+ " }");
 					} else if ( opkey.equalsIgnoreCase("html") ) {
 						// write it out
 						outWriter.write(streamBuffer.toString());
-						logger.info("{ \"html\":"
-								+ JSONHelper.toJSON(streamBuffer.toString())
-								+ " }");
 					} else if (opkey.equalsIgnoreCase("fulldata")) {
 						StringBuilder data = new StringBuilder();
 						data.append("{ \"metadata\":"+ jsonMetadata)
@@ -337,16 +322,12 @@ public class TikaService {
 									+ JSONHelper.toJSON(textBuffer.toString())
 									+ " }");
 						outWriter.write(data.toString());
-						logger.info(data.toString());
 					}
                     else {
                         outWriter.write("Oh bugga");
                         logger.info("Oh bugga");
                     }
-                    outWriter.write("all done");
 					outWriter.flush();
-
-                    logger.info("all done");
 				} catch (SAXException e) {
 					throw new WebApplicationException(
 							Response.Status.INTERNAL_SERVER_ERROR);
