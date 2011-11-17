@@ -1,3 +1,22 @@
+Branch of "Simple Tika Server" - see https://github.com/gselva
+
+Added convert to HTML
+
++ a nice little up and running script 
+usage ... download tika-server.sh
+
+./tika-server.sh
+
+* wait for a while ( lots of dependencies )
+
+send a file to the service
+
+curl -T test.docx http://localhost:45700/format ( html text )
+
+it will print back in given format.
+
+Original Author Readme below...
+
 Simple Tika Server
 https://github.com/gselva
 ==========================
