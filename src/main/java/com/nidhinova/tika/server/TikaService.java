@@ -89,6 +89,35 @@ public class TikaService {
 	private static final String FILE_NNAME = "File-Name";
 	private static final String RESOURCE_NAME = "resourceName";
 
+        /**
+         * Serves HTTP GET Returns a happy json message if we are up
+         *
+         * @param filename
+         * @param httpHeaders
+         * @return
+         * @throws Exception
+         */
+        @GET
+        @Produces({ MediaType.APPLICATION_JSON })
+        @Path("/status")
+        public StreamingOutput getTikaStatus(
+                        @javax.ws.rs.core.Context javax.ws.rs.core.UriInfo uriInfo,
+                        @Context HttpHeaders httpHeaders) throws Exception {
+                return new StreamingOutput() {
+                        public void write(OutputStream outputStream) throws IOException,
+                                        WebApplicationException {
+
+                                String contentEncoding = "UTF-8";
+
+                                Writer outWriter = getOutputWriter(outputStream,
+                                                contentEncoding);
+
+                                outWriter.write("{ \"status\":\"groovy\" }");
+                                outWriter.flush();
+                        }
+                };
+        }
+
 	/**
 	 * Serves HTTP GET Returns metadata formatted as json or plain text content
 	 * of the file. File should be locally accessible for Tika Server using
